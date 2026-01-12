@@ -14,8 +14,12 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  build-pkg:
+    uses: ./.github/workflows/build-package.yml
+
   run-tests:
     name: Import Test and Pytest Run
+    # needs: build  # todo: consider using this build package for testing
     timeout-minutes: 10
     strategy:
       fail-fast: false
