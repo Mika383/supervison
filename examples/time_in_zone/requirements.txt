@@ -5,3 +5,5 @@ inference[gaze,transformers,sam]
 # pytube
 pytubefix
 jsonargparse[signatures]
+rfdetr
+yt_dlp

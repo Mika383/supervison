@@ -1,6 +1,10 @@
+from __future__ import annotations
+
+from enum import Enum
+
 import cv2
 import numpy as np
-from inference import get_model
+from rfdetr import RFDETRBase, RFDETRLarge, RFDETRMedium, RFDETRNano, RFDETRSmall
 from utils.general import find_in_list, load_zones_config
 from utils.timers import FPSBasedTimer
 
@@ -13,28 +17,101 @@ LABEL_ANNOTATOR = sv.LabelAnnotator(
 )
 
 
+class ModelSize(Enum):
+    NANO = "nano"
+    SMALL = "small"
+    MEDIUM = "medium"
+    BASE = "base"
+    LARGE = "large"
+
+    @classmethod
+    def list(cls):
+        return list(map(lambda c: c.value, cls))
+
+    @classmethod
+    def from_value(cls, value: ModelSize | str) -> ModelSize:
+        if isinstance(value, cls):
+            return value
+        if isinstance(value, str):
+            value = value.lower()
+            try:
+                return cls(value)
+            except ValueError:
+                raise ValueError(f"Invalid value: {value}. Must be one of {cls.list()}")
+        raise ValueError(
+            f"Invalid value type: {type(value)}. Must be an instance of "
+            f"{cls.__name__} or str."
+        )
+
+
+def load_model(checkpoint: ModelSize | str, device: str, resolution: int):
+    checkpoint = ModelSize.from_value(checkpoint)
+
+    if checkpoint == ModelSize.NANO:
+        return RFDETRNano(device=device, resolution=resolution)
+    if checkpoint == ModelSize.SMALL:
+        return RFDETRSmall(device=device, resolution=resolution)
+    if checkpoint == ModelSize.MEDIUM:
+        return RFDETRMedium(device=device, resolution=resolution)
+    if checkpoint == ModelSize.BASE:
+        return RFDETRBase(device=device, resolution=resolution)
+    if checkpoint == ModelSize.LARGE:
+        return RFDETRLarge(device=device, resolution=resolution)
+
+    raise ValueError(
+        f"Invalid checkpoint: {checkpoint}. Must be one of: {ModelSize.list()}."
+    )
+
+
+def adjust_resolution(checkpoint: ModelSize | str, resolution: int) -> int:
+    checkpoint = ModelSize.from_value(checkpoint)
+
+    if checkpoint in {ModelSize.NANO, ModelSize.SMALL, ModelSize.MEDIUM}:
+        divisor = 32
+    elif checkpoint in {ModelSize.BASE, ModelSize.LARGE}:
+        divisor = 56
+    else:
+        raise ValueError(
+            f"Unknown checkpoint: {checkpoint}. Must be one of: {ModelSize.list()}."
+        )
+
+    remainder = resolution % divisor
+    if remainder == 0:
+        return resolution
+    lower = resolution - remainder
+    upper = lower + divisor
+
+    if resolution - lower < upper - resolution:
+        return lower
+    else:
+        return upper
+
+
 def main(
-    zone_configuration_path: str,
     source_video_path: str,
-    model_id: str = "rfdetr-medium",
+    zone_configuration_path: str,
+    resolution: int,
+    model_size: str = "small",
+    device: str = "cpu",
     confidence_threshold: float = 0.3,
     iou_threshold: float = 0.7,
     classes: list[int] = [],
-    roboflow_api_key: str = "",
 ) -> None:
     """
     Calculating detections dwell time in zones, using video file.
 
     Args:
-        zone_configuration_path: Path to the zone configuration JSON file
         source_video_path: Path to the source video file
-        model_id: Roboflow model ID
+        zone_configuration_path: Path to the zone configuration JSON file
+        resolution: Input resolution for the model
+        model_size: RF-DETR model size ('nano', 'small', 'medium', 'base' or 'large')
+        device: Computation device ('cpu', 'mps' or 'cuda')
         confidence_threshold: Confidence level for detections (0 to 1)
         iou_threshold: IOU threshold for non-max suppression
         classes: List of class IDs to track. If empty, all classes are tracked
-        roboflow_api_key: Roboflow API key for accessing private models
     """
-    model = get_model(model_id=model_id, api_key=roboflow_api_key)
+    resolution = adjust_resolution(checkpoint=model_size, resolution=resolution)
+    model = load_model(checkpoint=model_size, device=device, resolution=resolution)
     tracker = sv.ByteTrack(minimum_matching_threshold=0.5)
     video_info = sv.VideoInfo.from_video_path(video_path=source_video_path)
     frames_generator = sv.get_video_frames_generator(source_video_path)
@@ -50,11 +127,9 @@ def main(
     timers = [FPSBasedTimer(video_info.fps) for _ in zones]
 
     for frame in frames_generator:
-        results = model.infer(
-            frame, confidence=confidence_threshold, iou_threshold=iou_threshold
-        )[0]
-        detections = sv.Detections.from_inference(results)
+        detections = model.predict(frame, threshold=confidence_threshold)
         detections = detections[find_in_list(detections.class_id, classes)]
+        detections = detections.with_nms(threshold=iou_threshold)
         detections = tracker.update_with_detections(detections)
 
         annotated_frame = frame.copy()

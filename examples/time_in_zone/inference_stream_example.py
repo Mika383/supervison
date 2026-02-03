@@ -77,7 +77,7 @@ class CustomSink:
 def main(
     zone_configuration_path: str,
     rtsp_url: str,
-    model_id: str = "yolov8s-640",
+    model_id: str = "rfdetr-medium",
     confidence_threshold: float = 0.3,
     iou_threshold: float = 0.7,
     classes: list[int] = [],
