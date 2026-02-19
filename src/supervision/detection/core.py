@@ -706,6 +706,7 @@ class Detections:
         """
         Creates a Detections instance from
         [SAM 3](https://github.com/facebookresearch/sam3) inference result.
+        Supports both PVS and PCS SAM3 segmentation formats.
 
         Args:
             sam3_result (dict | Any): The output result from SAM 3 inference,
@@ -758,8 +759,19 @@ class Detections:
 
         if isinstance(sam3_result, dict):
             prompt_results = sam3_result.get("prompt_results", [])
+            if not prompt_results and "predictions" in sam3_result:
+                prompt_results = [
+                    {"predictions": sam3_result["predictions"], "prompt_index": 0}
+                ]
         else:
             prompt_results = getattr(sam3_result, "prompt_results", [])
+            if not prompt_results and hasattr(sam3_result, "predictions"):
+                prompt_results = [
+                    {
+                        "predictions": getattr(sam3_result, "predictions"),
+                        "prompt_index": 0,
+                    }
+                ]
 
         for i, prompt_result in enumerate(prompt_results):
             if isinstance(prompt_result, dict):
