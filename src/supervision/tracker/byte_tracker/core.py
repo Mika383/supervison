@@ -31,8 +31,8 @@ class ByteTrack:
             reducing the likelihood of track fragmentation or disappearance caused
             by brief detection gaps.
         minimum_matching_threshold: Threshold for matching tracks with detections.
-            Increasing minimum_matching_threshold improves accuracy but risks fragmentation.
-            Decreasing it improves completeness but risks false positives and drift.
+            Decreasing minimum_matching_threshold improves accuracy but risks fragmentation.
+            Increasing it improves completeness but risks false positives and drift.
         frame_rate: The frame rate of the video.
         minimum_consecutive_frames: Number of consecutive frames that an object must
             be tracked before it is considered a 'valid' track.
@@ -371,7 +371,7 @@ def remove_duplicate_tracks(
     tracks_a: list[STrack], tracks_b: list[STrack]
 ) -> tuple[list[STrack], list[STrack]]:
     pairwise_distance = matching.iou_distance(tracks_a, tracks_b)
-    matching_pairs = np.where(pairwise_distance < 0.15)
+    matching_pairs = np.where(pairwise_distance < 0.05)
 
     duplicates_a, duplicates_b = set(), set()
     for track_index_a, track_index_b in zip(*matching_pairs):
