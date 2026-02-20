@@ -369,7 +369,8 @@ def test_group_coco_annotations_by_image_id(
                             [1, 1, 1, 1, 1],
                             [1, 1, 1, 1, 1],
                         ]
-                    ]
+                    ],
+                    dtype=bool,
                 ),
             ),
             DoesNotRaise(),
@@ -398,7 +399,8 @@ def test_group_coco_annotations_by_image_id(
                             [1, 1, 1, 1, 1],
                             [1, 1, 1, 1, 1],
                         ]
-                    ]
+                    ],
+                    dtype=bool,
                 ),
                 data={"iscrowd": np.array([0], dtype=int), "area": np.array([25])},
             ),
@@ -432,7 +434,8 @@ def test_group_coco_annotations_by_image_id(
                             [1, 1, 1, 1, 1],
                             [1, 1, 1, 1, 1],
                         ]
-                    ]
+                    ],
+                    dtype=bool,
                 ),
             ),
             DoesNotRaise(),
@@ -465,7 +468,8 @@ def test_group_coco_annotations_by_image_id(
                             [1, 1, 1, 1, 1],
                             [1, 1, 1, 1, 1],
                         ]
-                    ]
+                    ],
+                    dtype=bool,
                 ),
                 data={"iscrowd": np.array([1], dtype=int), "area": np.array([25])},
             ),
@@ -512,7 +516,8 @@ def test_group_coco_annotations_by_image_id(
                             [0, 0, 0, 0, 0],
                             [0, 0, 0, 0, 0],
                         ],
-                    ]
+                    ],
+                    dtype=bool,
                 ),
             ),
             DoesNotRaise(),
@@ -558,7 +563,8 @@ def test_group_coco_annotations_by_image_id(
                             [0, 0, 0, 0, 0],
                             [0, 0, 0, 0, 0],
                         ],
-                    ]
+                    ],
+                    dtype=bool,
                 ),
                 data={
                     "iscrowd": np.array([0, 1], dtype=int),
@@ -609,7 +615,8 @@ def test_group_coco_annotations_by_image_id(
                             [1, 1, 1, 1, 1],
                             [1, 1, 1, 1, 1],
                         ],
-                    ]
+                    ],
+                    dtype=bool,
                 ),
             ),
             DoesNotRaise(),
@@ -655,7 +662,8 @@ def test_group_coco_annotations_by_image_id(
                             [1, 1, 1, 1, 1],
                             [1, 1, 1, 1, 1],
                         ],
-                    ]
+                    ],
+                    dtype=bool,
                 ),
                 data={
                     "iscrowd": np.array([1, 0], dtype=int),
@@ -774,7 +782,8 @@ def test_build_coco_class_index_mapping(
                             [1, 1, 1, 1, 0],
                             [1, 1, 1, 1, 0],
                         ]
-                    ]
+                    ],
+                    dtype=bool,
                 ),
             ),
             0,
@@ -803,7 +812,8 @@ def test_build_coco_class_index_mapping(
                             [0, 0, 0, 1, 1],
                             [0, 0, 0, 1, 1],
                         ]
-                    ]
+                    ],
+                    dtype=bool,
                 ),
             ),
             0,
@@ -835,7 +845,8 @@ def test_build_coco_class_index_mapping(
                             [1, 1, 0, 0, 1],
                             [1, 1, 1, 1, 1],
                         ]
-                    ]
+                    ],
+                    dtype=bool,
                 ),
             ),
             0,

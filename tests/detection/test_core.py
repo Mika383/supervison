@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from contextlib import ExitStack as DoesNotRaise
 
 import numpy as np
@@ -7,6 +8,7 @@ import pytest
 
 from supervision.detection.core import Detections, merge_inner_detection_object_pair
 from supervision.geometry.core import Position
+from supervision.utils.internal import SupervisionWarnings
 from tests.helpers import _create_detections
 
 PREDICTIONS = np.array(
@@ -127,6 +129,30 @@ TEST_DET_DIFFERENT_METADATA = Detections(
     class_id=np.array([3]),
     metadata={"source": "camera2"},
 )
+
+
+@pytest.mark.parametrize("mask_dtype", [bool, np.bool_])
+def test_detections_bool_mask_types_do_not_warn(mask_dtype) -> None:
+    with warnings.catch_warnings(record=True) as recorded_warnings:
+        warnings.simplefilter("always")
+        Detections(
+            xyxy=np.array([[1, 2, 3, 4]]),
+            mask=np.array([[[1, 0], [0, 1]]], dtype=mask_dtype),
+        )
+    assert not any(
+        warning.category is SupervisionWarnings for warning in recorded_warnings
+    )
+
+
+def test_detections_non_bool_mask_warns_with_migration_path() -> None:
+    with pytest.warns(
+        SupervisionWarnings,
+        match="supervision-0.28.0.*ValueError.*astype\\(bool\\)",
+    ):
+        Detections(
+            xyxy=np.array([[1, 2, 3, 4]]),
+            mask=np.array([[[1, 0], [0, 1]]], dtype=np.uint8),
+        )
 
 
 @pytest.mark.parametrize(
