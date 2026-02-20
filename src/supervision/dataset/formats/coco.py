@@ -216,6 +216,22 @@ def load_coco_annotations(
     force_masks: bool = False,
     use_iscrowd: bool = True,
 ) -> tuple[list[str], list[str], dict[str, Detections]]:
+    """
+    Load COCO annotations and convert them to `Detections`.
+
+    If `force_masks` is `False`, masks are still loaded for images whose annotations
+    include a `segmentation` field. This keeps mask handling consistent with other
+    dataset loaders that infer masks from annotation content.
+
+    Args:
+        images_directory_path: Path to the image directory.
+        annotations_path: Path to COCO JSON annotations.
+        force_masks: If `True`, always attempt to load masks.
+        use_iscrowd: If `True`, include `iscrowd` and `area` in detection data.
+
+    Returns:
+        A tuple of `(classes, image_paths, annotations)`.
+    """
     coco_data = read_json_file(file_path=annotations_path)
     classes = coco_categories_to_classes(coco_categories=coco_data["categories"])
 
@@ -240,10 +256,13 @@ def load_coco_annotations(
         image_annotations = coco_annotations_groups.get(coco_image["id"], [])
         image_path = os.path.join(images_directory_path, image_name)
 
+        with_masks = force_masks or any(
+            _with_seg_mask(annotation) for annotation in image_annotations
+        )
         annotation = coco_annotations_to_detections(
             image_annotations=image_annotations,
             resolution_wh=(image_width, image_height),
-            with_masks=force_masks,
+            with_masks=with_masks,
             use_iscrowd=use_iscrowd,
         )
 
@@ -256,6 +275,10 @@ def load_coco_annotations(
         annotations[image_path] = annotation
 
     return classes, images, annotations
+
+
+def _with_seg_mask(annotation: dict[str, Any]) -> bool:
+    return "segmentation" in annotation
 
 
 def save_coco_annotations(

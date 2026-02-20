@@ -234,7 +234,9 @@ def detections_from_xml_obj(
     xyxy: list[list[int]] = []
     class_names: list[str] = []
     masks: list[npt.NDArray[np.bool_]] = []
-    with_masks = False
+    with_masks = force_masks or any(
+        _with_poly_mask(obj) for obj in root.findall("object")
+    )
     extended_classes = classes[:]
     for obj in root.findall("object"):
         class_name = _get_required_text(obj, "name")
@@ -250,9 +252,7 @@ def detections_from_xml_obj(
 
         xyxy.append([x1, y1, x2, y2])
 
-        with_masks = obj.find("polygon") is not None
-        with_masks = force_masks if force_masks else with_masks
-
+        object_mask = np.zeros((resolution_wh[1], resolution_wh[0]), dtype=bool)
         for polygon_element in obj.findall("polygon"):
             polygon = parse_polygon_points(polygon_element)
             # https://github.com/roboflow/supervision/issues/144
@@ -262,7 +262,10 @@ def detections_from_xml_obj(
                 polygon=polygon,
                 resolution_wh=resolution_wh,
             )
-            masks.append(mask_from_polygon)
+            object_mask |= mask_from_polygon.astype(bool)
+
+        if with_masks:
+            masks.append(object_mask)
 
     xyxy_arr: npt.NDArray[np.float32]
     if xyxy:
@@ -282,11 +285,15 @@ def detections_from_xml_obj(
 
     annotation = Detections(
         xyxy=xyxy_arr,
-        mask=np.array(masks).astype(bool) if with_masks else None,
+        mask=np.array(masks, dtype=bool) if with_masks else None,
         class_id=class_id,
     )
 
     return annotation, extended_classes
+
+
+def _with_poly_mask(obj: Element) -> bool:
+    return obj.find("polygon") is not None
 
 
 def parse_polygon_points(polygon: Element) -> npt.NDArray[np.int_]:
