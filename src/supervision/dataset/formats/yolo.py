@@ -53,7 +53,10 @@ def _polygons_to_masks(
 ) -> npt.NDArray[np.bool_]:
     return np.array(
         [
-            polygon_to_mask(polygon=polygon, resolution_wh=resolution_wh)
+            polygon_to_mask(
+                polygon=np.round(polygon).astype(np.int32),
+                resolution_wh=resolution_wh,
+            )
             for polygon in polygons
         ],
         dtype=bool,
@@ -129,7 +132,7 @@ def yolo_annotations_to_detections(
         return Detections(class_id=class_id, xyxy=xyxy, data=data)
 
     polygons = [
-        np.round(polygon * np.array(resolution_wh, dtype=np.float32)).astype(int)
+        polygon * np.array(resolution_wh, dtype=np.float32)
         for polygon in relative_polygon
     ]
     mask = _polygons_to_masks(polygons=polygons, resolution_wh=resolution_wh)
