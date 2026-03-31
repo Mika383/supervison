@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -154,6 +155,8 @@ def load_yolo_annotations(
             YAML file containing class information.
         force_masks: If True, forces masks to be loaded
             for all annotations, regardless of whether they are present.
+            This parameter has no effect when `is_obb=True`; mask generation
+            is always disabled for OBB annotations.
         is_obb: If True, loads the annotations in OBB format.
             OBB annotations are defined as `[class_id, x, y, x, y, x, y, x, y]`,
             where pairs of [x, y] are box corners.
@@ -163,6 +166,13 @@ def load_yolo_annotations(
             image names as keys and images as values, and a dictionary
             with image names as keys and corresponding Detections instances as values.
     """
+    if is_obb and force_masks:
+        warnings.warn(
+            "`force_masks=True` has no effect when `is_obb=True`; "
+            "mask generation is always disabled for OBB annotations.",
+            UserWarning,
+            stacklevel=2,
+        )
     image_paths = [
         str(path)
         for path in list_files_with_extensions(
@@ -202,7 +212,7 @@ def load_yolo_annotations(
                 but {image_path} mode is '{image.mode}'."
             )
 
-        with_masks = force_masks or _with_seg_mask(lines=lines)
+        with_masks = not is_obb and (force_masks or _with_seg_mask(lines=lines))
         annotation = yolo_annotations_to_detections(
             lines=lines,
             resolution_wh=resolution_wh,
