@@ -53,24 +53,38 @@ class LineZone:
             (`int` for classified detections, `None` for unclassified ones).
 
     Example:
-        ```python
-        import supervision as sv
-        from ultralytics import YOLO
+        ```pycon
+        >>> import numpy as np
+        >>> import supervision as sv
+        >>> def frames_generator():
+        ...     yield np.zeros((1080, 1920, 3), dtype=np.uint8)
+        ...
+        >>> start = sv.Point(x=0, y=100)
+        >>> end = sv.Point(x=200, y=100)
+        >>> line_zone = sv.LineZone(start=start, end=end)
+        >>> for frame in frames_generator():
+        ...     detections = sv.Detections(
+        ...         xyxy=np.array([[10, 110, 20, 150]]),
+        ...         tracker_id=np.array([1])
+        ...     )
+        ...     crossed_in, crossed_out = line_zone.trigger(
+        ...         detections
+        ...     )
+        ...
+        >>> line_zone.in_count, line_zone.out_count
+        (0, 0)
+        >>> for frame in frames_generator():
+        ...     detections = sv.Detections(
+        ...         xyxy=np.array([[10, 50, 20, 90]]),
+        ...         tracker_id=np.array([1])
+        ...     )
+        ...     crossed_in, crossed_out = line_zone.trigger(
+        ...         detections
+        ...     )
+        ...
+        >>> line_zone.in_count, line_zone.out_count
+        (1, 0)
 
-        model = YOLO("<SOURCE_MODEL_PATH>")
-        tracker = sv.ByteTrack()
-        frames_generator = sv.get_video_frames_generator("<SOURCE_VIDEO_PATH>")
-        start, end = sv.Point(x=0, y=1080), sv.Point(x=3840, y=1080)
-        line_zone = sv.LineZone(start=start, end=end)
-
-        for frame in frames_generator:
-            result = model(frame)[0]
-            detections = sv.Detections.from_ultralytics(result)
-            detections = tracker.update_with_detections(detections)
-            crossed_in, crossed_out = line_zone.trigger(detections)
-
-        line_zone.in_count, line_zone.out_count
-        # 7, 2
         ```
     """
 
