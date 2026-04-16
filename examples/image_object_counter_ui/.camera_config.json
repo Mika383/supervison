@@ -1,0 +1,14 @@
+[
+  {
+    "camera_id": "01",
+    "required_count": 5,
+    "active": true,
+    "area_name": "văn phòng"
+  },
+  {
+    "camera_id": "02",
+    "required_count": 7,
+    "active": true,
+    "area_name": "văn phòng 2"
+  }
+]

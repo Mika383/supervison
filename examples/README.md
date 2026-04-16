@@ -6,6 +6,7 @@ For more information and examples, visit our [documentation](https://supervision
 
 - [tracking](./tracking) by [@SkalskiP](https://github.com/SkalskiP)
 - [count people in zone](./count_people_in_zone) by [@SkalskiP](https://github.com/SkalskiP)
+- [image object counter ui](./image_object_counter_ui) by [@community](https://github.com/roboflow/supervision)
 - [traffic analysis](./traffic_analysis) by [@SkalskiP](https://github.com/SkalskiP)
 - [speed estimation](./speed_estimation) by [@SkalskiP](https://github.com/SkalskiP)
 - [time in zone](./time_in_zone) by [@SkalskiP](https://github.com/SkalskiP)

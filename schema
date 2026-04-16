@@ -1,0 +1,792 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+  // KHÔNG set output => Prisma Client nằm trong node_modules (mặc định)
+}
+
+datasource db {
+  provider = "postgresql"
+  // Prisma 7: url nằm trong prisma.config.ts
+}
+
+////////////////////////////////////////////////////////////
+// ENUMS
+////////////////////////////////////////////////////////////
+
+enum AccountStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum RoleKey {
+  ADMIN
+  DIRECTOR
+  STAFF
+  EMPLOYEE
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum WorkShiftStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum ScheduleStatus {
+  DRAFT
+  PUBLISHED
+  LOCKED
+}
+
+enum HolidayScope {
+  ALL
+  DEPARTMENT
+  POSITION
+  EMPLOYEE
+}
+
+enum HolidayPayPolicy {
+  PAID
+  UNPAID
+  LEAVE
+}
+
+enum AttendanceSource {
+  WEB
+  MOBILE
+  DEVICE
+  IMPORT
+  MANUAL
+}
+
+enum AttendanceEventType {
+  CHECK_IN
+  CHECK_OUT
+  BREAK_START
+  BREAK_END
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EARLY_LEAVE
+  LATE_AND_EARLY
+  OVERTIME
+  NON_COMPLIANT
+  NO_SHIFT
+  INCOMPLETE
+}
+
+enum AttendanceCheckInStatus {
+  PENDING
+  MISSED
+  ON_TIME
+  LATE
+}
+
+enum AttendanceCheckOutStatus {
+  PENDING
+  MISSED
+  ON_TIME
+  EARLY
+  OVERTIME
+}
+
+enum OvertimeStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum LeaveType {
+  ANNUAL
+  SICK
+  UNPAID
+  OTHER
+}
+
+enum LeaveStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum RequestStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ProfileUpdateField {
+  ACCOUNT_EMAIL
+  PHONE
+  CITIZEN_ID
+  SOCIAL_INSURANCE
+}
+
+enum RequestType {
+  SHIFT_CHANGE
+  PROFILE_UPDATE
+  LEAVE
+  ATTENDANCE_ADJUSTMENT
+}
+
+enum AttendanceAdjustmentField {
+  CHECK_IN_TIME
+  CHECK_OUT_TIME
+  CHECK_IN_STATUS
+  CHECK_OUT_STATUS
+}
+
+enum EmploymentType {
+  CT // Chính thức
+  TV // Thời vụ
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  RESTORE
+  IMPORT
+  LOGIN
+  LOGOUT
+  APPROVE
+  REJECT
+}
+
+enum AuditEntity {
+  ACCOUNT
+  EMPLOYEE
+  DEPARTMENT
+  POSITION
+  WORK_SHIFT
+  WORK_SCHEDULE
+  ATTENDANCE_RECORD
+  ATTENDANCE_EVENT
+  OVERTIME
+  LEAVE
+  PAYROLL_PERIOD
+  FILE_IMPORT
+}
+
+////////////////////////////////////////////////////////////
+// CORE AUTH / ACCOUNT
+////////////////////////////////////////////////////////////
+
+model Account {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  passwordHash String?
+  name         String?
+  phone        String?
+  status       AccountStatus @default(ACTIVE)
+  roleKey      RoleKey       @default(EMPLOYEE)
+
+  // 1-1 optional với Employee
+  employeeId String?   @unique
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Audit logs (actor)
+  audits AuditLog[] @relation("audit_actor")
+
+  // ✅ Opposite relation fields (bắt buộc vì ta đặt @relation("...") ở phía kia)
+  schedulesCreated WorkSchedule[] @relation("schedule_created_by")
+  schedulesUpdated WorkSchedule[] @relation("schedule_updated_by")
+
+  attendanceCreated AttendanceRecord[] @relation("attendance_created_by")
+  attendanceUpdated AttendanceRecord[] @relation("attendance_updated_by")
+  attendanceAdjusted AttendanceRecord[] @relation("attendance_adjusted_by")
+
+  eventsCreated AttendanceEvent[] @relation("event_created_by")
+
+  overtimeApproved OvertimeRequest[] @relation("ot_approved_by")
+  overtimeCreated  OvertimeRequest[] @relation("ot_created_by")
+  overtimeUpdated  OvertimeRequest[] @relation("ot_updated_by")
+
+  leaveApproved LeaveRequest[] @relation("leave_approved_by")
+  leaveCreated  LeaveRequest[] @relation("leave_created_by")
+  leaveUpdated  LeaveRequest[] @relation("leave_updated_by")
+
+  importsCreated FileImport[] @relation("import_created_by")
+
+  requestActions RequestActionLog[] @relation("request_action_handled_by")
+}
+
+////////////////////////////////////////////////////////////
+// HR: EMPLOYEE, DEPARTMENT, POSITION
+////////////////////////////////////////////////////////////
+
+model Department {
+  id   String @id @default(uuid())
+  code String @unique
+  name String
+
+  managerId String?
+  manager   Employee? @relation("dept_manager", fields: [managerId], references: [id])
+
+  employees Employee[]
+  holidays  Holiday[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Position {
+  id   String @id @default(uuid())
+  code String @unique
+  name String
+
+  employees Employee[]
+  holidays  Holiday[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Employee {
+  id        String    @id @default(uuid())
+  code      String    @unique
+  fullName  String
+  gender    Gender?   @default(OTHER)
+  dob       DateTime?
+  phone     String?
+  personalEmail String?
+  address   String?
+  avatarUrl String?
+  socialInsuranceNumber String? @unique
+  citizenIdNumber       String? @unique
+  salary    Int?
+
+  isActive   Boolean   @default(true)
+  joinedAt   DateTime?
+  resignedAt DateTime?
+  employmentType EmploymentType @default(CT)
+
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  positionId String?
+  position   Position? @relation(fields: [positionId], references: [id])
+
+  // account liên kết
+  account Account?
+
+  schedules        WorkSchedule[]
+  attendance       AttendanceRecord[]
+  attendanceEvents AttendanceEvent[]
+  deviceUserMappings AttendanceDeviceUserMapping[]
+  benefit          EmployeeBenefit?
+
+  overtimeRequests OvertimeRequest[] @relation("ot_employee")
+  leaveRequests    LeaveRequest[]    @relation("leave_employee")
+  shiftChangeRequests ShiftChangeRequest[]
+  profileUpdateRequests ProfileUpdateRequest[]
+  attendanceAdjustmentRequests AttendanceAdjustmentRequest[]
+
+  managesDepartments Department[] @relation("dept_manager")
+  holidays          Holiday[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+////////////////////////////////////////////////////////////
+// SHIFT & SCHEDULING
+////////////////////////////////////////////////////////////
+
+model WorkShift {
+  id   String @id @default(uuid())
+  code String @unique
+  name String
+
+  startTime    String // "08:00"
+  endTime      String // "17:00"
+  breakMinutes Int    @default(0)
+
+  lateGraceMinutes  Int @default(0)
+  earlyGraceMinutes Int @default(0)
+  overtimeThresholdMinutes Int @default(0)
+
+  status WorkShiftStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  schedules WorkSchedule[]
+  shiftChangeCurrentRequests ShiftChangeRequest[] @relation("shift_change_current")
+  shiftChangeDesiredRequests ShiftChangeRequest[] @relation("shift_change_desired")
+}
+
+model HolidayType {
+  id        String @id @default(uuid())
+  name      String
+  color     String @default("#F59E0B")
+  payPolicy HolidayPayPolicy @default(PAID)
+
+  holidays Holiday[]
+  leaveRequests LeaveRequest[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Holiday {
+  id            String @id @default(uuid())
+  date          DateTime
+  scope         HolidayScope @default(ALL)
+
+  holidayTypeId String
+  holidayType   HolidayType @relation(fields: [holidayTypeId], references: [id])
+
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+
+  positionId String?
+  position   Position? @relation(fields: [positionId], references: [id])
+
+  employeeId String?
+  employee   Employee? @relation(fields: [employeeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
+  @@index([scope])
+  @@index([departmentId])
+  @@index([positionId])
+  @@index([employeeId])
+}
+
+model PayrollPeriod {
+  id        String   @id @default(uuid())
+  code      String   @unique // "2025-12"
+  startDate DateTime
+  endDate   DateTime
+  isLocked  Boolean  @default(false)
+
+  schedules WorkSchedule[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WorkSchedule {
+  id String @id @default(uuid())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  date DateTime
+
+  workShiftId String?
+  workShift   WorkShift? @relation(fields: [workShiftId], references: [id])
+
+  // SNAPSHOT
+  plannedName              String
+  plannedStart             String
+  plannedEnd               String
+  plannedBreakMinutes      Int    @default(0)
+  plannedLateGraceMinutes  Int    @default(0)
+  plannedEarlyGraceMinutes Int    @default(0)
+
+  status ScheduleStatus @default(PUBLISHED)
+
+  payrollPeriodId String?
+  payrollPeriod   PayrollPeriod? @relation(fields: [payrollPeriodId], references: [id])
+
+  createdById String?
+  createdBy   Account? @relation("schedule_created_by", fields: [createdById], references: [id])
+
+  updatedById String?
+  updatedBy   Account? @relation("schedule_updated_by", fields: [updatedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ✅ 1 schedule tối đa 1 record
+  attendance AttendanceRecord? @relation("schedule_attendance")
+
+  @@unique([employeeId, date])
+  @@index([date])
+  @@index([employeeId, date])
+}
+
+////////////////////////////////////////////////////////////
+// ATTENDANCE
+////////////////////////////////////////////////////////////
+
+model AttendanceRecord {
+  id String @id @default(uuid())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  date       DateTime
+  scheduleId String?       @unique
+  schedule   WorkSchedule? @relation("schedule_attendance", fields: [scheduleId], references: [id])
+
+  checkInAt  DateTime?
+  checkOutAt DateTime?
+
+  workMinutes     Int @default(0)
+  breakMinutes    Int @default(0)
+  overtimeMinutes Int @default(0)
+
+  lateMinutes       Int @default(0)
+  earlyLeaveMinutes Int @default(0)
+
+  status AttendanceStatus @default(INCOMPLETE)
+  checkInStatus  AttendanceCheckInStatus?
+  checkOutStatus AttendanceCheckOutStatus?
+  source AttendanceSource @default(WEB)
+  note   String?
+
+  isAdjusted Boolean @default(false)
+  adjustedAt DateTime?
+  adjustedById String?
+  adjustedBy   Account? @relation("attendance_adjusted_by", fields: [adjustedById], references: [id])
+  adjustNote String?
+
+  createdById String?
+  createdBy   Account? @relation("attendance_created_by", fields: [createdById], references: [id])
+
+  updatedById String?
+  updatedBy   Account? @relation("attendance_updated_by", fields: [updatedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events AttendanceEvent[]
+
+  @@unique([employeeId, date])
+  @@index([date])
+  @@index([employeeId, date])
+}
+
+model AttendanceEvent {
+  id String @id @default(uuid())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  date     DateTime
+  recordId String?
+  record   AttendanceRecord? @relation(fields: [recordId], references: [id])
+
+  type       AttendanceEventType
+  occurredAt DateTime
+  source     AttendanceSource    @default(WEB)
+
+  meta Json?
+
+  createdById String?
+  createdBy   Account? @relation("event_created_by", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  // ✅ ép: mỗi ngày 1 CHECK_IN + 1 CHECK_OUT (và 1 BREAK_START/END nếu dùng)
+  @@unique([employeeId, date, type])
+  @@index([employeeId, date])
+  @@index([occurredAt])
+}
+
+model AttendanceMachineEvent {
+  id String @id @default(uuid())
+
+  deviceCode String
+  machineId  Int?
+  deviceIp   String?
+
+  deviceUserCode String
+  userSn         Int?
+
+  epochMs    BigInt
+  occurredAt DateTime
+
+  verifyType String?
+  inOut      String?
+
+  dedupeKey String @unique
+  raw       Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([deviceCode, deviceUserCode, epochMs])
+  @@index([occurredAt])
+}
+
+model AttendanceDeviceUserMapping {
+  id String @id @default(uuid())
+
+  deviceCode     String
+  deviceUserCode String
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  note     String?
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([deviceCode, deviceUserCode])
+  @@index([employeeId])
+}
+
+model SystemState {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+////////////////////////////////////////////////////////////
+// OVERTIME
+////////////////////////////////////////////////////////////
+
+model OvertimeRequest {
+  id String @id @default(uuid())
+
+  employeeId String
+  employee   Employee @relation("ot_employee", fields: [employeeId], references: [id])
+
+  date    DateTime
+  startAt DateTime
+  endAt   DateTime
+  minutes Int      @default(0)
+
+  reason String?
+  status OvertimeStatus @default(DRAFT)
+
+  submittedAt  DateTime?
+  approvedAt   DateTime?
+  approvedById String?
+  approvedBy   Account?  @relation("ot_approved_by", fields: [approvedById], references: [id])
+
+  createdById String?
+  createdBy   Account? @relation("ot_created_by", fields: [createdById], references: [id])
+
+  updatedById String?
+  updatedBy   Account? @relation("ot_updated_by", fields: [updatedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId, date])
+  @@index([status])
+}
+
+////////////////////////////////////////////////////////////
+// LEAVE
+////////////////////////////////////////////////////////////
+
+model LeaveRequest {
+  id String @id @default(uuid())
+
+  employeeId String
+  employee   Employee @relation("leave_employee", fields: [employeeId], references: [id])
+
+  type      LeaveType
+  startDate DateTime
+  endDate   DateTime
+  reason    String?
+  status    LeaveStatus @default(DRAFT)
+  holidayTypeId String?
+  holidayType   HolidayType? @relation(fields: [holidayTypeId], references: [id])
+
+  submittedAt  DateTime?
+  approvedAt   DateTime?
+  approvedById String?
+  approvedBy   Account?  @relation("leave_approved_by", fields: [approvedById], references: [id])
+
+  createdById String?
+  createdBy   Account? @relation("leave_created_by", fields: [createdById], references: [id])
+
+  updatedById String?
+  updatedBy   Account? @relation("leave_updated_by", fields: [updatedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId, startDate])
+  @@index([status])
+}
+
+////////////////////////////////////////////////////////////
+// EMPLOYEE REQUESTS
+////////////////////////////////////////////////////////////
+
+model ShiftChangeRequest {
+  id String @id @default(uuid())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  date           DateTime
+  currentShiftId String
+  currentShift   WorkShift @relation("shift_change_current", fields: [currentShiftId], references: [id])
+  desiredShiftId String
+  desiredShift   WorkShift @relation("shift_change_desired", fields: [desiredShiftId], references: [id])
+  reason         String?
+
+  status      RequestStatus @default(SUBMITTED)
+  submittedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId, date])
+  @@index([status])
+}
+
+model ProfileUpdateRequest {
+  id String @id @default(uuid())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  field    ProfileUpdateField
+  newValue String
+  previousValue String?
+  reason   String?
+
+  status      RequestStatus @default(SUBMITTED)
+  submittedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId, createdAt])
+  @@index([status])
+}
+
+model AttendanceAdjustmentRequest {
+  id String @id @default(uuid())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  date     DateTime
+  field    AttendanceAdjustmentField
+  newValue String
+  reason   String?
+
+  status      RequestStatus @default(SUBMITTED)
+  submittedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([employeeId, date])
+  @@index([status])
+}
+
+model RequestActionLog {
+  id String @id @default(uuid())
+
+  requestType RequestType
+  requestId   String
+  status      RequestStatus
+  note        String?
+
+  handledById String?
+  handledBy   Account? @relation("request_action_handled_by", fields: [handledById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([requestType, requestId])
+  @@index([handledById])
+}
+
+////////////////////////////////////////////////////////////
+// EMPLOYEE BENEFIT
+////////////////////////////////////////////////////////////
+
+model EmployeeBenefit {
+  id String @id @default(uuid())
+
+  employeeId String @unique
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  totalAnnualLeaveDays Int @default(0)
+  usedAnnualLeaveDays  Int @default(0)
+  usedShiftChangeCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+////////////////////////////////////////////////////////////
+// SHIFT CHANGE POLICY
+////////////////////////////////////////////////////////////
+
+model ShiftChangePolicy {
+  id String @id @default(uuid())
+
+  key String @unique @default("GLOBAL")
+  totalShiftChangeCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+////////////////////////////////////////////////////////////
+// FILE IMPORT
+////////////////////////////////////////////////////////////
+
+model FileImport {
+  id          String  @id @default(uuid())
+  type        String
+  fileName    String
+  fileUrl     String?
+  totalRows   Int     @default(0)
+  successRows Int     @default(0)
+  failedRows  Int     @default(0)
+  errors      Json?
+
+  createdById String?
+  createdBy   Account? @relation("import_created_by", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+////////////////////////////////////////////////////////////
+// AUDIT LOG
+////////////////////////////////////////////////////////////
+
+model AuditLog {
+  id String @id @default(uuid())
+
+  action   AuditAction
+  entity   AuditEntity
+  entityId String
+
+  actorId String?
+  actor   Account? @relation("audit_actor", fields: [actorId], references: [id])
+
+  before Json?
+  after  Json?
+  meta   Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([actorId])
+  @@index([createdAt])
+}
